@@ -6,6 +6,29 @@ export interface GameWithId extends Type {
   id: bigint;
 }
 
+export interface CustomCode extends Type__1 {
+  id: string;
+  isCustom: true;
+}
+
+const CUSTOM_CODES_KEY = "game_genie_custom_codes";
+
+function loadCustomCodes(): CustomCode[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_CODES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Array<CustomCode & { gameId: string }>;
+    return parsed.map((c) => ({ ...c, gameId: BigInt(c.gameId) }));
+  } catch {
+    return [];
+  }
+}
+
+function persistCustomCodes(codes: CustomCode[]): void {
+  const serialized = codes.map((c) => ({ ...c, gameId: c.gameId.toString() }));
+  localStorage.setItem(CUSTOM_CODES_KEY, JSON.stringify(serialized));
+}
+
 export function useAllGames() {
   const { actor, isFetching } = useActor();
   return useQuery<GameWithId[]>({
@@ -39,24 +62,22 @@ export function useSearchGames(query: string, genre: string) {
       } else if (query.trim()) {
         results = await actor.searchGamesByName(query);
       } else {
-        // Load by multiple genres to get all games
         const genres = [
           "RPG",
           "Action",
           "Platformer",
-          "FPS",
+          "Shooter",
           "Fighting",
           "Adventure",
           "Sports",
           "Puzzle",
           "Racing",
-          "Strategy",
+          "Sandbox",
         ];
         const searches = await Promise.all(
           genres.map((g) => actor.searchGamesByGenre(g)),
         );
         const all = searches.flat();
-        // Deduplicate by name
         const seen = new Set<string>();
         results = all.filter((g) => {
           if (seen.has(g.name)) return false;
@@ -64,7 +85,6 @@ export function useSearchGames(query: string, genre: string) {
           return true;
         });
       }
-      // Match to IDs by fetching all games
       const allGames = await Promise.allSettled(
         Array.from({ length: 20 }, (_, i) => actor.getGameById(BigInt(i))),
       );
@@ -104,6 +124,19 @@ export function useCheatCodes(gameId: bigint | null) {
       return actor.getCheatCodesForGame(gameId);
     },
     enabled: !!actor && !isFetching && gameId !== null,
+  });
+}
+
+export function useCustomCodesForGame(gameId: bigint | null) {
+  return useQuery<CustomCode[]>({
+    queryKey: ["customCodes", gameId?.toString()],
+    queryFn: async () => {
+      if (gameId === null) return [];
+      return loadCustomCodes().filter(
+        (c) => c.gameId.toString() === gameId.toString(),
+      );
+    },
+    enabled: gameId !== null,
   });
 }
 
@@ -170,6 +203,35 @@ export function useGenerateCode() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["codeHistory"] });
+    },
+  });
+}
+
+export function useSaveCustomCode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      gameId: bigint;
+      code: string;
+      effect: string;
+      category: string;
+    }) => {
+      const existing = loadCustomCodes();
+      const newCode: CustomCode = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        gameId: params.gameId,
+        code: params.code,
+        effect: params.effect,
+        category: params.category,
+        isCustom: true,
+      };
+      persistCustomCodes([...existing, newCode]);
+      return newCode;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["customCodes", variables.gameId.toString()],
+      });
     },
   });
 }

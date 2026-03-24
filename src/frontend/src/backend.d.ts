@@ -25,6 +25,14 @@ export interface Type__1 {
     effect: string;
     category: string;
 }
+export interface CheatCodeWithId {
+    id: bigint;
+    code: string;
+    gameId: bigint;
+    effect: string;
+    category: string;
+    isCustom: boolean;
+}
 export interface GeneratedCode {
     code: string;
     userId: Principal;
@@ -49,12 +57,15 @@ export interface backendInterface {
     getCallerUserRole(): Promise<UserRole>;
     getCheatCodeById(cheatCodeId: bigint): Promise<Type__1>;
     getCheatCodesForGame(gameId: bigint): Promise<Array<Type__1>>;
+    getCustomCodesForGame(gameId: bigint): Promise<Array<CheatCodeWithId>>;
+    getCustomCodesForUser(): Promise<Array<CheatCodeWithId>>;
     getGameById(gameId: bigint): Promise<Type>;
     getGeneratedCodesHistory(): Promise<Array<GeneratedCode>>;
     getUserLibrary(): Promise<Array<UserGame>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveCustomCode(gameId: bigint, code: string, effect: string, category: string): Promise<bigint>;
     saveGameToLibrary(gameId: bigint): Promise<void>;
     searchGamesByGenre(genre: string): Promise<Array<Type>>;
     searchGamesByName(searchText: string): Promise<Array<Type>>;

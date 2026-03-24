@@ -1,4 +1,3 @@
-import Iter "mo:core/Iter";
 import Array "mo:core/Array";
 import Map "mo:core/Map";
 import Order "mo:core/Order";
@@ -15,11 +14,9 @@ import MixinAuthorization "authorization/MixinAuthorization";
 actor {
   type Timestamp = Int;
 
-  // Initialize the access control system
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // User Profile type as required
   public type UserProfile = {
     name : Text;
   };
@@ -28,21 +25,21 @@ actor {
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access profiles");
+      Runtime.trap("Unauthorized");
     };
     userProfiles.get(caller);
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
+      Runtime.trap("Unauthorized");
     };
     userProfiles.get(user);
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
+      Runtime.trap("Unauthorized");
     };
     userProfiles.add(caller, profile);
   };
@@ -79,6 +76,15 @@ actor {
     };
   };
 
+  public type CheatCodeWithId = {
+    id : Nat;
+    gameId : Nat;
+    code : Text;
+    effect : Text;
+    category : Text;
+    isCustom : Bool;
+  };
+
   type UserGame = {
     userId : Principal;
     gameId : Nat;
@@ -105,23 +111,19 @@ actor {
     };
   };
 
-  module Timestamp {
-    public func compare(ts1 : Timestamp, ts2 : Timestamp) : Order.Order {
-      Int.compare(ts1, ts2);
-    };
-  };
-
   let catalog = Map.empty<Nat, Game.Type>();
   let cheatCodes = Map.empty<Nat, CheatCode.Type>();
+  let customCodes = Map.empty<Nat, CheatCodeWithId>();
+  let userCustomCodes = Map.empty<Principal, List.List<Nat>>();
   let userGames = Map.empty<Principal, List.List<UserGame>>();
   let generatedCodes = Map.empty<Principal, List.List<GeneratedCode>>();
 
   var nextGameId = 0;
   var nextCheatCodeId = 0;
   var nextGeneratedCodeId = 0;
+  var nextCustomCodeId = 0;
 
-  // Public read functions - accessible to everyone including guests
-  public query ({ caller }) func searchGamesByName(searchText : Text) : async [Game.Type] {
+  public query func searchGamesByName(searchText : Text) : async [Game.Type] {
     let matches = List.empty<Game.Type>();
     for ((_, game) in catalog.entries()) {
       if (game.name.toLower().contains(#text(searchText.toLower()))) {
@@ -131,7 +133,7 @@ actor {
     matches.toArray();
   };
 
-  public query ({ caller }) func searchGamesByGenre(genre : Text) : async [Game.Type] {
+  public query func searchGamesByGenre(genre : Text) : async [Game.Type] {
     let matches = List.empty<Game.Type>();
     for ((_, game) in catalog.entries()) {
       if (game.genre.toLower().contains(#text(genre.toLower()))) {
@@ -141,7 +143,7 @@ actor {
     matches.toArray();
   };
 
-  public query ({ caller }) func getCheatCodesForGame(gameId : Nat) : async [CheatCode.Type] {
+  public query func getCheatCodesForGame(gameId : Nat) : async [CheatCode.Type] {
     let codes = List.empty<CheatCode.Type>();
     for ((_, cheatCode) in cheatCodes.entries()) {
       if (cheatCode.gameId == gameId) {
@@ -151,27 +153,78 @@ actor {
     codes.toArray();
   };
 
-  public query ({ caller }) func getGameById(gameId : Nat) : async Game.Type {
+  public query func getGameById(gameId : Nat) : async Game.Type {
     switch (catalog.get(gameId)) {
       case (null) { Runtime.trap("Game not found") };
       case (?game) { game };
     };
   };
 
-  public query ({ caller }) func getCheatCodeById(cheatCodeId : Nat) : async CheatCode.Type {
+  public query func getCheatCodeById(cheatCodeId : Nat) : async CheatCode.Type {
     switch (cheatCodes.get(cheatCodeId)) {
       case (null) { Runtime.trap("Cheat code not found") };
       case (?code) { code };
     };
   };
 
-  // User-specific functions - require authenticated user
+  public query func getCustomCodesForGame(gameId : Nat) : async [CheatCodeWithId] {
+    let results = List.empty<CheatCodeWithId>();
+    for ((_, code) in customCodes.entries()) {
+      if (code.gameId == gameId) {
+        results.add(code);
+      };
+    };
+    results.toArray();
+  };
+
+  public query ({ caller }) func getCustomCodesForUser() : async [CheatCodeWithId] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let ids = switch (userCustomCodes.get(caller)) {
+      case (null) { return [] };
+      case (?list) { list };
+    };
+    let results = List.empty<CheatCodeWithId>();
+    for (id in ids.values()) {
+      switch (customCodes.get(id)) {
+        case (null) {};
+        case (?code) { results.add(code) };
+      };
+    };
+    results.toArray();
+  };
+
+  public shared ({ caller }) func saveCustomCode(gameId : Nat, code : Text, effect : Text, category : Text) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save custom codes");
+    };
+    let id = nextCustomCodeId;
+    let customCode : CheatCodeWithId = {
+      id;
+      gameId;
+      code;
+      effect;
+      category;
+      isCustom = true;
+    };
+    customCodes.add(id, customCode);
+    let existingIds = switch (userCustomCodes.get(caller)) {
+      case (null) { List.empty<Nat>() };
+      case (?list) { list };
+    };
+    existingIds.add(id);
+    userCustomCodes.add(caller, existingIds);
+    nextCustomCodeId += 1;
+    id;
+  };
+
   public shared ({ caller }) func generateRandomCode(gameId : Nat) : async GeneratedCode {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can generate codes");
+      Runtime.trap("Unauthorized");
     };
 
-    let game = switch (catalog.get(gameId)) {
+    let _ = switch (catalog.get(gameId)) {
       case (null) { Runtime.trap("Game not found") };
       case (?game) { game };
     };
@@ -187,6 +240,7 @@ actor {
     };
 
     storeGeneratedCode(caller, generatedCode);
+    nextGeneratedCodeId += 1;
     generatedCode;
   };
 
@@ -199,17 +253,21 @@ actor {
     };
     if (codes.isEmpty()) { "Unknown Effect" } else {
       let codesArray = codes.toArray();
-      codesArray[0];
+      codesArray[nextGeneratedCodeId % codesArray.size()];
     };
   };
 
   func generateUniqueCode() : Text {
-    nextGeneratedCodeId.toText().concat("CODE");
+    let prefix = ["GG", "XZ", "KS", "UP", "LV"];
+    let suffix = ["A9", "F7", "C3", "Z1", "B8"];
+    let p = prefix[nextGeneratedCodeId % prefix.size()];
+    let s = suffix[nextGeneratedCodeId % suffix.size()];
+    p # "-" # nextGeneratedCodeId.toText() # "-" # s;
   };
 
   public shared ({ caller }) func saveGameToLibrary(gameId : Nat) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save games to library");
+      Runtime.trap("Unauthorized");
     };
 
     let userGame : UserGame = {
@@ -228,27 +286,21 @@ actor {
 
   public query ({ caller }) func getUserLibrary() : async [UserGame] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access their library");
+      Runtime.trap("Unauthorized");
     };
-
     switch (userGames.get(caller)) {
       case (null) { [] };
-      case (?list) {
-        list.toArray().sort(UserGame.compareByTimestamp);
-      };
+      case (?list) { list.toArray().sort(UserGame.compareByTimestamp) };
     };
   };
 
   public query ({ caller }) func getGeneratedCodesHistory() : async [GeneratedCode] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access their code history");
+      Runtime.trap("Unauthorized");
     };
-
     switch (generatedCodes.get(caller)) {
       case (null) { [] };
-      case (?list) {
-        list.toArray().sort();
-      };
+      case (?list) { list.toArray() };
     };
   };
 
@@ -261,12 +313,10 @@ actor {
     generatedCodes.add(userId, existingCodes);
   };
 
-  // Admin-only functions - modify global catalog
   public shared ({ caller }) func addGame(game : Game.Type) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can add games");
+      Runtime.trap("Unauthorized");
     };
-
     let gameId = nextGameId;
     catalog.add(gameId, game);
     nextGameId += 1;
@@ -275,47 +325,85 @@ actor {
 
   public shared ({ caller }) func addCheatCode(cheatCode : CheatCode.Type) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can add cheat codes");
+      Runtime.trap("Unauthorized");
     };
-
     let cheatCodeId = nextCheatCodeId;
     cheatCodes.add(cheatCodeId, cheatCode);
     nextCheatCodeId += 1;
     cheatCodeId;
   };
 
-  // Function for seeding data
-  public shared ({ caller }) func seedData() : async () {
+  public shared func seedData() : async () {
     if (not catalog.isEmpty()) { return };
     let games : [Game.Type] = [
-      { name = "Super Mario Bros"; genre = "Platformer"; platform = "NES"; description = "Classic platform game" },
-      { name = "The Legend of Zelda"; genre = "Action-adventure"; platform = "NES"; description = "Adventure game" },
-      { name = "Minecraft"; genre = "Sandbox"; platform = "Multi"; description = "Block-building game" },
-      { name = "Fortnite"; genre = "Battle Royale"; platform = "Multi"; description = "Shooter" },
-      { name = "Pokemon Red"; genre = "RPG"; platform = "Game Boy"; description = "Monster capturing RPG" },
-      { name = "GTA V"; genre = "Action"; platform = "Multi"; description = "Open world action" },
-      { name = "Call of Duty"; genre = "Shooter"; platform = "Multi"; description = "First-person shooter" },
-      { name = "Sonic the Hedgehog"; genre = "Platformer"; platform = "Genesis"; description = "Fast-paced platformer" },
-      { name = "DOOM"; genre = "Shooter"; platform = "Multi"; description = "Classic FPS" },
-      { name = "Street Fighter II"; genre = "Fighting"; platform = "Super NES"; description = "Fighting game" },
+      { name = "Super Mario Bros"; genre = "Platformer"; platform = "NES"; description = "Classic Nintendo platformer where Mario saves Princess Peach" },
+      { name = "The Legend of Zelda"; genre = "Adventure"; platform = "NES"; description = "Explore Hyrule and defeat Ganon to rescue Princess Zelda" },
+      { name = "Metroid"; genre = "Action"; platform = "NES"; description = "Sci-fi action game starring bounty hunter Samus Aran" },
+      { name = "Mega Man 2"; genre = "Platformer"; platform = "NES"; description = "Battle Robot Masters and defeat Dr. Wily" },
+      { name = "Pokemon Red"; genre = "RPG"; platform = "Game Boy"; description = "Catch and train monsters to become Pokemon Champion" },
+      { name = "Tetris"; genre = "Puzzle"; platform = "Game Boy"; description = "Timeless tile-matching puzzle game" },
+      { name = "Super Mario Land"; genre = "Platformer"; platform = "Game Boy"; description = "Mario's handheld adventure across four kingdoms" },
+      { name = "Street Fighter II"; genre = "Fighting"; platform = "SNES"; description = "Legendary one-on-one fighting game with global warriors" },
+      { name = "Super Metroid"; genre = "Action"; platform = "SNES"; description = "Atmospheric sci-fi exploration on planet Zebes" },
+      { name = "Chrono Trigger"; genre = "RPG"; platform = "SNES"; description = "Epic time-travel RPG with multiple endings" },
+      { name = "Sonic the Hedgehog"; genre = "Platformer"; platform = "Genesis"; description = "Sega's speedy blue mascot races through colorful zones" },
+      { name = "Streets of Rage 2"; genre = "Action"; platform = "Genesis"; description = "Side-scrolling beat-em-up through crime-ridden streets" },
+      { name = "Super Mario 64"; genre = "Platformer"; platform = "N64"; description = "Nintendo's groundbreaking 3D platformer" },
+      { name = "GoldenEye 007"; genre = "Shooter"; platform = "N64"; description = "Iconic James Bond first-person shooter" },
+      { name = "The Legend of Zelda: Ocarina of Time"; genre = "Adventure"; platform = "N64"; description = "3D Zelda epic across time in Hyrule" },
+      { name = "Gran Turismo"; genre = "Racing"; platform = "PlayStation"; description = "Realistic car simulation with hundreds of vehicles" },
+      { name = "Final Fantasy VII"; genre = "RPG"; platform = "PlayStation"; description = "Cloud Strife battles Sephiroth to save the Planet" },
+      { name = "Crash Bandicoot"; genre = "Platformer"; platform = "PlayStation"; description = "Wacky marsupial hero on a tropical island adventure" },
+      { name = "Minecraft"; genre = "Sandbox"; platform = "Multi"; description = "Infinite block-building and survival world" },
+      { name = "GTA V"; genre = "Action"; platform = "Multi"; description = "Open-world crime epic set in Los Santos" },
     ];
 
-    let codes = [
-      { gameId = 0; code = "SZNZUP"; effect = "Infinite Lives"; category = "Unlimited" },
-      { gameId = 1; code = "KZXPY"; effect = "God Mode"; category = "Invincibility" },
-      { gameId = 2; code = "XZLSZP"; effect = "Super Speed"; category = "Speed Boost" },
-      { gameId = 3; code = "EIUPYX"; effect = "No Reload"; category = "Ammo" },
-      { gameId = 4; code = "KSKVYM"; effect = "Instant Win"; category = "Win" },
+    let codes : [(Nat, Text, Text, Text)] = [
+      (0, "SZNZUP", "Infinite Lives", "Unlimited"),
+      (0, "AATOZE", "Start with 10 Lives", "Lives"),
+      (0, "SZKZLG", "Fire Mario from Start", "Power-Up"),
+      (1, "KZXPYP", "God Mode", "Invincibility"),
+      (1, "AANLZZ", "Max Rupees", "Currency"),
+      (1, "SUKLZA", "All Items Unlocked", "Unlock"),
+      (2, "XZLSZP", "Super Speed", "Speed"),
+      (2, "GZNYKP", "Infinite Missiles", "Ammo"),
+      (3, "EIUPYX", "Infinite Energy", "Health"),
+      (3, "SZKXUP", "All Weapons", "Unlock"),
+      (4, "KSKVYM", "Instant Win", "Win"),
+      (4, "AAZPKK", "Infinite PP", "Unlimited"),
+      (4, "UPAXZK", "Max Experience", "Stats"),
+      (7, "TZKZUP", "Infinite Health", "Invincibility"),
+      (7, "AAZNLZ", "Super Damage", "Attack"),
+      (10, "GGSNZK", "Debug Mode", "Debug"),
+      (10, "AAZPAZ", "Infinite Rings", "Unlimited"),
+      (10, "TGZNKA", "Super Sonic Always", "Power-Up"),
+      (12, "STAR99", "All 120 Stars", "Unlock"),
+      (12, "XZLPUP", "Moon Jump", "Movement"),
+      (13, "INVNBL", "Invincibility", "Invincibility"),
+      (13, "ALLGNS", "All Guns", "Weapons"),
+      (13, "BIGHED", "Big Head Mode", "Cheats"),
+      (14, "INFHRT", "Infinite Hearts", "Health"),
+      (14, "ALLITM", "All Items", "Unlock"),
+      (16, "MAXGIL", "Max Gil", "Currency"),
+      (16, "LVLMAX", "Max Level", "Stats"),
+      (16, "INFIMP", "Infinite MP", "Unlimited"),
+      (19, "TURTLE", "Max Health & Armor", "Health"),
+      (19, "LWYRP", "Reduce Wanted Level", "Cheat"),
+      (19, "SKYFALL", "Spawn Parachute", "Item"),
     ];
+
     var id = 0;
     for (game in games.values()) {
       catalog.add(id, game);
       id += 1;
     };
+    nextGameId := id;
+
     id := 0;
-    for (cheatCode in codes.values()) {
-      cheatCodes.add(id, cheatCode);
+    for ((gId, code, effect, category) in codes.values()) {
+      cheatCodes.add(id, { gameId = gId; code; effect; category });
       id += 1;
     };
+    nextCheatCodeId := id;
   };
 };
