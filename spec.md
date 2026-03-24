@@ -1,30 +1,34 @@
 # Game Genie Code Lab
 
 ## Current State
-- 10 games in seed catalog, 5 cheat codes seeded
-- Users can search games, add to library, generate random codes, view history
-- GameDetailPage shows all cheat codes and a code generator
-- No way for users to enter custom cheat codes
+- Search tab has a genre filter (pill buttons) and a text search input
+- Games have a `platform` field in the backend (e.g., NES, SNES, PlayStation, PC, Mobile, Switch, etc.)
+- No platform filter exists in the UI
+- An info banner explains web apps can't scan the device
+- Library and Code History tabs exist
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: saveCustomCode(gameId, code, effect, category) for authenticated users
-- Backend: getCustomCodesForUser() returns user's own custom codes
-- Seed data: Expand to ~20 games with richer cheat code coverage
-- Frontend: Custom Code Entry Form on GameDetailPage
-- Frontend: Display user custom codes in separate section on GameDetailPage
+- Platform filter pill buttons row below the genre filter row in the Search tab
+- "Detect My Device" button that uses browser/UA detection to auto-select the most relevant platform filter (e.g., iOS -> Mobile, Windows -> PC, Android -> Mobile/Android)
+- Platform filter applies in combination with genre filter and search query
+- Filter logic: if both genre and platform are selected, filter by both; if only one, filter by that
+- Update info banner to mention the detect device feature
 
 ### Modify
-- seedData: expand games list and cheat codes
-- GameDetailPage: add form section and custom codes display
-- useQueries: add hooks for saveCustomCode and getCustomCodesForUser
+- `HomePage` component: add `selectedPlatform` state, add platform filter row, wire filtering logic to also filter `displayedGames` by platform on the frontend (since backend doesn't have a `searchGamesByPlatform` method, apply platform filtering client-side after fetching all games)
+- Replace info banner text to explain the device detect feature
+- The "Detect My Device" button replaces the old static warning, auto-selects the platform and scrolls to the filtered results
 
 ### Remove
-- Nothing
+- Static info banner warning about web app scanning limitation (replace with interactive detect button in the filter area)
 
 ## Implementation Plan
-1. Update backend main.mo: add saveCustomCode, getCustomCodesForUser, expand seedData
-2. Regenerate bindings via generate_motoko_code
-3. Update frontend GameDetailPage with form + custom codes section
-4. Add hooks in useQueries
+1. Add `PLATFORMS` constant array with all platforms in the catalog: All, NES, SNES, Game Boy, GBA, DS, 3DS, N64, Genesis, PlayStation, PS2, PS3, PS4, PS5, PSP, Xbox, Xbox 360, Xbox One, Xbox Series X, Wii, Wii U, Switch, PC, Mobile
+2. Add `selectedPlatform` state (default "All") in `HomePage`
+3. Add `detectMyDevice()` function using `navigator.userAgent` and `navigator.platform` to return a best-guess platform string
+4. Add a "Detect My Device" button with a scan/chip icon in the filter area
+5. Add platform filter pill row below genre filter
+6. Update `displayedGames` memo to also filter by `selectedPlatform` client-side against `allGames`
+7. When platform is selected (or detected), ensure search tab is active and results update

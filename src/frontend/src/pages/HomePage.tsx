@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Search } from "lucide-react";
+import { MonitorSmartphone, Search } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -31,6 +31,43 @@ const GENRES = [
   "Strategy",
 ];
 
+const PLATFORMS = [
+  "All",
+  "NES",
+  "SNES",
+  "Game Boy",
+  "GBA",
+  "DS",
+  "3DS",
+  "N64",
+  "Genesis",
+  "PlayStation",
+  "PS2",
+  "PS3",
+  "PS4",
+  "PS5",
+  "PSP",
+  "Xbox",
+  "Xbox 360",
+  "Xbox One",
+  "Xbox Series X",
+  "Wii",
+  "Wii U",
+  "Switch",
+  "PC",
+  "Mobile",
+];
+
+function detectMyDevice(): string {
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform?.toLowerCase() ?? "";
+  if (/iphone|ipad|ipod|android/.test(ua)) return "Mobile";
+  if (/win/.test(platform) || /windows/.test(ua)) return "PC";
+  if (/mac/.test(platform) && !/iphone|ipad/.test(ua)) return "PC";
+  if (/linux/.test(platform)) return "PC";
+  return "All";
+}
+
 interface HomePageProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
@@ -44,6 +81,7 @@ export default function HomePage({
 }: HomePageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("All");
+  const [selectedPlatform, setSelectedPlatform] = useState("All");
 
   const { data: allGames, isLoading: allLoading } = useAllGames();
   const { data: searchResults, isLoading: searchLoading } = useSearchGames(
@@ -64,8 +102,9 @@ export default function HomePage({
       searchQuery.trim() || selectedGenre !== "All"
         ? (searchResults ?? [])
         : (allGames ?? []);
-    return base;
-  }, [searchQuery, selectedGenre, searchResults, allGames]);
+    if (selectedPlatform === "All") return base;
+    return base.filter((g) => g.platform === selectedPlatform);
+  }, [searchQuery, selectedGenre, selectedPlatform, searchResults, allGames]);
 
   const handleAddToLibrary = async (gameId: bigint) => {
     try {
@@ -81,26 +120,29 @@ export default function HomePage({
     }
   };
 
+  const handleDetectDevice = () => {
+    const detected = detectMyDevice();
+    setSelectedPlatform(detected);
+    if (detected === "All") {
+      toast("Could not detect platform — showing all games", {
+        icon: <MonitorSmartphone className="w-4 h-4 text-cyan-400" />,
+      });
+    } else {
+      toast.success(`Detected: ${detected} — showing ${detected} games`, {
+        icon: <MonitorSmartphone className="w-4 h-4 text-cyan-400" />,
+        style: {
+          background: "oklch(0.13 0.018 265)",
+          border: "1px solid oklch(0.78 0.22 210 / 0.5)",
+        },
+      });
+    }
+  };
+
   const isLoading =
     searchQuery.trim() || selectedGenre !== "All" ? searchLoading : allLoading;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      {/* Info Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-6 flex items-start gap-3 p-3 rounded-sm border border-neon-cyan/30 bg-neon-cyan/5"
-        data-ocid="info.panel"
-      >
-        <AlertCircle className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-cyan-400">
-          <span className="font-semibold">Note:</span> Web apps can&apos;t scan
-          your device — search for your games below and add them to your library
-          to start generating cheat codes!
-        </p>
-      </motion.div>
-
       <Tabs value={activeTab} onValueChange={onTabChange}>
         <TabsList
           className="mb-6 bg-card border border-border/60 h-10"
@@ -140,6 +182,27 @@ export default function HomePage({
         {/* SEARCH TAB */}
         <TabsContent value="search">
           <div className="mb-5 space-y-3">
+            {/* Detect My Device button */}
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-between"
+            >
+              <p className="text-xs text-muted-foreground">
+                Browse the full catalog or detect your device platform
+              </p>
+              <button
+                type="button"
+                onClick={handleDetectDevice}
+                data-ocid="detect.device.button"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-sm border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-400/70 transition-all duration-200 font-mono flex-shrink-0"
+              >
+                <MonitorSmartphone className="w-3.5 h-3.5" />
+                Detect My Device
+              </button>
+            </motion.div>
+
+            {/* Search input */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -150,13 +213,15 @@ export default function HomePage({
                 data-ocid="search.input"
               />
             </div>
+
+            {/* Genre filter */}
             <div className="flex gap-2 flex-wrap">
               {GENRES.map((g) => (
                 <button
                   type="button"
                   key={g}
                   onClick={() => setSelectedGenre(g)}
-                  data-ocid={`genre.${g.toLowerCase()}.toggle`}
+                  data-ocid={`genre.${g.toLowerCase().replace(/ /g, "_")}.toggle`}
                   className={`px-3 py-1 text-xs rounded-sm border transition-all duration-200 ${
                     selectedGenre === g
                       ? "border-neon-purple/70 bg-neon-purple/15 text-neon-purple"
@@ -166,6 +231,33 @@ export default function HomePage({
                   {g}
                 </button>
               ))}
+            </div>
+
+            {/* Platform filter */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                Platform:
+              </p>
+              <div
+                className="flex gap-2 overflow-x-auto pb-1"
+                style={{ scrollbarWidth: "none" }}
+              >
+                {PLATFORMS.map((p) => (
+                  <button
+                    type="button"
+                    key={p}
+                    onClick={() => setSelectedPlatform(p)}
+                    data-ocid={`platform.${p.toLowerCase().replace(/ /g, "_")}.toggle`}
+                    className={`px-3 py-1 text-xs rounded-sm border transition-all duration-200 flex-shrink-0 ${
+                      selectedPlatform === p
+                        ? "border-cyan-500/70 bg-cyan-500/15 text-cyan-400"
+                        : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -189,7 +281,7 @@ export default function HomePage({
                 NO GAMES FOUND
               </p>
               <p className="text-sm text-muted-foreground">
-                Try a different search term or genre
+                Try a different search term, genre, or platform
               </p>
             </motion.div>
           ) : (

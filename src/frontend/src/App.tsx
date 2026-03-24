@@ -19,11 +19,11 @@ export default function App() {
 
   useEffect(() => {
     if (!actor || isFetching) return;
-    const seeded = localStorage.getItem("gameGenie_seeded");
+    const seeded = localStorage.getItem("gameGenie_seeded_v3");
     if (!seeded) {
       seedMutateRef.current(undefined, {
         onSuccess: () => {
-          localStorage.setItem("gameGenie_seeded", "1");
+          localStorage.setItem("gameGenie_seeded_v3", "1");
         },
       });
     }

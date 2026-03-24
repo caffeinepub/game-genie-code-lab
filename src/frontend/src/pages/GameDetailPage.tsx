@@ -38,10 +38,27 @@ const PLATFORM_COLORS: Record<string, string> = {
   NES: "text-neon-pink border-neon-pink/50 bg-neon-pink/10",
   SNES: "text-neon-purple border-neon-purple/50 bg-neon-purple/10",
   "Game Boy": "text-neon-green border-neon-green/50 bg-neon-green/10",
+  GBA: "text-neon-green border-neon-green/50 bg-neon-green/10",
+  DS: "text-cyan-400 border-cyan-400/50 bg-cyan-400/10",
+  "3DS": "text-cyan-400 border-cyan-400/50 bg-cyan-400/10",
+  PSP: "text-neon-purple border-neon-purple/50 bg-neon-purple/10",
+  PS1: "text-neon-purple border-neon-purple/50 bg-neon-purple/10",
+  PS2: "text-neon-purple border-neon-purple/50 bg-neon-purple/10",
+  PS3: "text-neon-purple border-neon-purple/50 bg-neon-purple/10",
+  PS4: "text-neon-purple border-neon-purple/50 bg-neon-purple/10",
+  PS5: "text-cyan-400 border-cyan-400/50 bg-cyan-400/10",
+  PlayStation: "text-neon-purple border-neon-purple/50 bg-neon-purple/10",
   Genesis: "text-neon-pink border-neon-pink/50 bg-neon-pink/10",
   N64: "text-neon-green border-neon-green/50 bg-neon-green/10",
-  PlayStation: "text-neon-purple border-neon-purple/50 bg-neon-purple/10",
+  Xbox: "text-neon-green border-neon-green/50 bg-neon-green/10",
+  "Xbox 360": "text-neon-green border-neon-green/50 bg-neon-green/10",
+  "Xbox One": "text-neon-green border-neon-green/50 bg-neon-green/10",
+  "Xbox Series X": "text-neon-green border-neon-green/50 bg-neon-green/10",
+  Wii: "text-cyan-400 border-cyan-400/50 bg-cyan-400/10",
+  Switch: "text-neon-pink border-neon-pink/50 bg-neon-pink/10",
   PC: "text-cyan-400 border-cyan-400/50 bg-cyan-400/10",
+  Mobile: "text-yellow-400 border-yellow-400/50 bg-yellow-400/10",
+  Multi: "text-cyan-400 border-cyan-400/50 bg-cyan-400/10",
   default: "text-cyan-400 border-cyan-400/50 bg-cyan-400/10",
 };
 
@@ -277,7 +294,6 @@ export default function GameDetailPage({
         }}
         data-ocid="custom_code.section"
       >
-        {/* Collapsible Header */}
         <button
           type="button"
           className="w-full flex items-center justify-between p-5 group"
@@ -306,7 +322,6 @@ export default function GameDetailPage({
           )}
         </button>
 
-        {/* Form Body */}
         <AnimatePresence>
           {showCustomForm && (
             <motion.div
