@@ -1,237 +1,267 @@
+import type { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { GeneratedCode, Type, Type__1, UserGame } from "../backend";
+import type {
+  Comment,
+  UserProfile,
+  VideoPost,
+  backendInterface,
+} from "../backend.d";
 import { useActor } from "./useActor";
+import { useInternetIdentity } from "./useInternetIdentity";
 
-export interface GameWithId extends Type {
-  id: bigint;
+export type { VideoPost, Comment, UserProfile };
+
+function getActor(actor: unknown): backendInterface {
+  return actor as backendInterface;
 }
 
-export interface CustomCode extends Type__1 {
-  id: string;
-  isCustom: true;
-}
-
-const CUSTOM_CODES_KEY = "game_genie_custom_codes";
-
-function loadCustomCodes(): CustomCode[] {
-  try {
-    const raw = localStorage.getItem(CUSTOM_CODES_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Array<CustomCode & { gameId: string }>;
-    return parsed.map((c) => ({ ...c, gameId: BigInt(c.gameId) }));
-  } catch {
-    return [];
-  }
-}
-
-function persistCustomCodes(codes: CustomCode[]): void {
-  const serialized = codes.map((c) => ({ ...c, gameId: c.gameId.toString() }));
-  localStorage.setItem(CUSTOM_CODES_KEY, JSON.stringify(serialized));
-}
-
-export function useAllGames() {
+export function useFeed(tab: "latest" | "trending") {
   const { actor, isFetching } = useActor();
-  return useQuery<GameWithId[]>({
-    queryKey: ["allGames"],
+  return useQuery<VideoPost[]>({
+    queryKey: ["feed", tab],
     queryFn: async () => {
       if (!actor) return [];
-      const ids = Array.from({ length: 20 }, (_, i) => BigInt(i));
-      const results = await Promise.allSettled(
-        ids.map((id) => actor.getGameById(id)),
-      );
-      return results
-        .map((r, i) =>
-          r.status === "fulfilled" ? { ...r.value, id: BigInt(i) } : null,
-        )
-        .filter((g): g is GameWithId => g !== null && !!g.name);
-    },
-    enabled: !!actor && !isFetching,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useSearchGames(query: string, genre: string) {
-  const { actor, isFetching } = useActor();
-  return useQuery<GameWithId[]>({
-    queryKey: ["searchGames", query, genre],
-    queryFn: async () => {
-      if (!actor) return [];
-      let results: Type[] = [];
-      if (genre && genre !== "all") {
-        results = await actor.searchGamesByGenre(genre);
-      } else if (query.trim()) {
-        results = await actor.searchGamesByName(query);
-      } else {
-        const genres = [
-          "RPG",
-          "Action",
-          "Platformer",
-          "Shooter",
-          "Fighting",
-          "Adventure",
-          "Sports",
-          "Puzzle",
-          "Racing",
-          "Sandbox",
-        ];
-        const searches = await Promise.all(
-          genres.map((g) => actor.searchGamesByGenre(g)),
-        );
-        const all = searches.flat();
-        const seen = new Set<string>();
-        results = all.filter((g) => {
-          if (seen.has(g.name)) return false;
-          seen.add(g.name);
-          return true;
-        });
+      const a = getActor(actor);
+      if (tab === "trending") {
+        return a.getTrendingFeed(BigInt(20), BigInt(0));
       }
-      const allGames = await Promise.allSettled(
-        Array.from({ length: 20 }, (_, i) => actor.getGameById(BigInt(i))),
-      );
-      const gameMap = new Map<string, bigint>();
-      allGames.forEach((r, i) => {
-        if (r.status === "fulfilled" && r.value?.name) {
-          gameMap.set(r.value.name, BigInt(i));
-        }
+      return a.getFeed(BigInt(20), BigInt(0));
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useVideo(videoId: bigint | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<VideoPost | null>({
+    queryKey: ["video", videoId?.toString()],
+    queryFn: async () => {
+      if (!actor || videoId === null) return null;
+      return getActor(actor).getVideo(videoId);
+    },
+    enabled: !!actor && !isFetching && videoId !== null,
+  });
+}
+
+export function useVideoTips(videoId: bigint | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<bigint>({
+    queryKey: ["videoTips", videoId?.toString()],
+    queryFn: async () => {
+      if (!actor || videoId === null) return BigInt(0);
+      return getActor(actor).getVideoTips(videoId);
+    },
+    enabled: !!actor && !isFetching && videoId !== null,
+  });
+}
+
+export function useHasLiked(videoId: bigint | null) {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery<boolean>({
+    queryKey: [
+      "hasLiked",
+      videoId?.toString(),
+      identity?.getPrincipal().toString(),
+    ],
+    queryFn: async () => {
+      if (!actor || videoId === null || !identity) return false;
+      return getActor(actor).hasLikedVideo(videoId);
+    },
+    enabled: !!actor && !isFetching && videoId !== null && !!identity,
+  });
+}
+
+export function useComments(videoId: bigint | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Comment[]>({
+    queryKey: ["comments", videoId?.toString()],
+    queryFn: async () => {
+      if (!actor || videoId === null) return [];
+      return getActor(actor).getComments(videoId);
+    },
+    enabled: !!actor && !isFetching && videoId !== null,
+  });
+}
+
+export function useMyProfile() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery<UserProfile | null>({
+    queryKey: ["myProfile", identity?.getPrincipal().toString()],
+    queryFn: async () => {
+      if (!actor || !identity) return null;
+      return getActor(actor).getMyProfile();
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
+}
+
+export function useUserProfile(principal: Principal | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<UserProfile | null>({
+    queryKey: ["userProfile", principal?.toString()],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      return getActor(actor).getUserProfile(principal);
+    },
+    enabled: !!actor && !isFetching && !!principal,
+  });
+}
+
+export function useUserVideos(principal: Principal | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<VideoPost[]>({
+    queryKey: ["userVideos", principal?.toString()],
+    queryFn: async () => {
+      if (!actor || !principal) return [];
+      return getActor(actor).getUserVideos(principal);
+    },
+    enabled: !!actor && !isFetching && !!principal,
+  });
+}
+
+export function useMyTipsEarned() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery<bigint>({
+    queryKey: ["myTipsEarned", identity?.getPrincipal().toString()],
+    queryFn: async () => {
+      if (!actor || !identity) return BigInt(0);
+      return getActor(actor).getMyTipsEarned();
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
+}
+
+export function useSearchVideos(keyword: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<VideoPost[]>({
+    queryKey: ["searchVideos", keyword],
+    queryFn: async () => {
+      if (!actor || !keyword.trim()) return [];
+      return getActor(actor).searchVideos(keyword);
+    },
+    enabled: !!actor && !isFetching && keyword.trim().length > 0,
+  });
+}
+
+export function useSaveProfile() {
+  const { actor } = useActor();
+  const { identity } = useInternetIdentity();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (displayName: string) => {
+      if (!actor) throw new Error("Not authenticated");
+      await getActor(actor).saveUserProfile({ displayName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["myProfile", identity?.getPrincipal().toString()],
       });
-      return results
-        .map((g) => ({ ...g, id: gameMap.get(g.name) ?? BigInt(-1) }))
-        .filter((g) => g.id >= 0);
     },
-    enabled: !!actor && !isFetching,
   });
 }
 
-export function useGameById(id: bigint | null) {
-  const { actor, isFetching } = useActor();
-  return useQuery<GameWithId | null>({
-    queryKey: ["game", id?.toString()],
-    queryFn: async () => {
-      if (!actor || id === null) return null;
-      const g = await actor.getGameById(id);
-      return { ...g, id };
+export function useLikeVideo() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  const { identity } = useInternetIdentity();
+  return useMutation({
+    mutationFn: async (videoId: bigint) => {
+      if (!actor) throw new Error("Not authenticated");
+      return getActor(actor).likeVideo(videoId);
     },
-    enabled: !!actor && !isFetching && id !== null,
+    onSuccess: (_data, videoId) => {
+      queryClient.invalidateQueries({
+        queryKey: ["video", videoId.toString()],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "hasLiked",
+          videoId.toString(),
+          identity?.getPrincipal().toString(),
+        ],
+      });
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+    },
   });
 }
 
-export function useCheatCodes(gameId: bigint | null) {
-  const { actor, isFetching } = useActor();
-  return useQuery<Type__1[]>({
-    queryKey: ["cheatCodes", gameId?.toString()],
-    queryFn: async () => {
-      if (!actor || gameId === null) return [];
-      return actor.getCheatCodesForGame(gameId);
-    },
-    enabled: !!actor && !isFetching && gameId !== null,
-  });
-}
-
-export function useCustomCodesForGame(gameId: bigint | null) {
-  return useQuery<CustomCode[]>({
-    queryKey: ["customCodes", gameId?.toString()],
-    queryFn: async () => {
-      if (gameId === null) return [];
-      return loadCustomCodes().filter(
-        (c) => c.gameId.toString() === gameId.toString(),
-      );
-    },
-    enabled: gameId !== null,
-  });
-}
-
-export function useUserLibrary() {
-  const { actor, isFetching } = useActor();
-  return useQuery<UserGame[]>({
-    queryKey: ["userLibrary"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return actor.getUserLibrary();
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useCodeHistory() {
-  const { actor, isFetching } = useActor();
-  return useQuery<GeneratedCode[]>({
-    queryKey: ["codeHistory"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return actor.getGeneratedCodesHistory();
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useSeedData() {
+export function useTipVideo() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      if (!actor) throw new Error("No actor");
-      await actor.seedData();
+    mutationFn: async ({
+      videoId,
+      amount,
+    }: { videoId: bigint; amount: bigint }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return getActor(actor).tipVideo(videoId, amount);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["allGames"] });
-      queryClient.invalidateQueries({ queryKey: ["searchGames"] });
+    onSuccess: (_data, { videoId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["videoTips", videoId.toString()],
+      });
+      queryClient.invalidateQueries({ queryKey: ["myTipsEarned"] });
     },
   });
 }
 
-export function useSaveToLibrary() {
+export function useAddComment() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (gameId: bigint) => {
-      if (!actor) throw new Error("No actor");
-      await actor.saveGameToLibrary(gameId);
+    mutationFn: async ({
+      videoId,
+      text,
+    }: { videoId: bigint; text: string }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return getActor(actor).addComment(videoId, text);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["userLibrary"] });
+    onSuccess: (_data, { videoId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["comments", videoId.toString()],
+      });
     },
   });
 }
 
-export function useGenerateCode() {
+export function usePostVideo() {
   const { actor } = useActor();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (gameId: bigint) => {
-      if (!actor) throw new Error("No actor");
-      return actor.generateRandomCode(gameId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["codeHistory"] });
-    },
-  });
-}
-
-export function useSaveCustomCode() {
+  const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (params: {
-      gameId: bigint;
-      code: string;
-      effect: string;
-      category: string;
+      title: string;
+      description: string;
+      tags: string[];
+      blobKey: string;
     }) => {
-      const existing = loadCustomCodes();
-      const newCode: CustomCode = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        gameId: params.gameId,
-        code: params.code,
-        effect: params.effect,
-        category: params.category,
-        isCustom: true,
-      };
-      persistCustomCodes([...existing, newCode]);
-      return newCode;
+      if (!actor) throw new Error("Not authenticated");
+      return getActor(actor).postVideo(
+        params.title,
+        params.description,
+        params.tags,
+        params.blobKey,
+      );
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
       queryClient.invalidateQueries({
-        queryKey: ["customCodes", variables.gameId.toString()],
+        queryKey: ["userVideos", identity?.getPrincipal().toString()],
       });
+    },
+  });
+}
+
+export function useIncrementView() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async (videoId: bigint) => {
+      if (!actor) return;
+      await getActor(actor).incrementViewCount(videoId);
     },
   });
 }

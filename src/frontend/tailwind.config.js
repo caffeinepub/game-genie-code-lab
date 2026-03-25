@@ -38,16 +38,18 @@ export default {
         border: "oklch(var(--border) / <alpha-value>)",
         input: "oklch(var(--input) / <alpha-value>)",
         ring: "oklch(var(--ring) / <alpha-value>)",
-        neon: {
-          green: "oklch(var(--neon-green) / <alpha-value>)",
-          purple: "oklch(var(--neon-purple) / <alpha-value>)",
-          pink: "oklch(var(--neon-pink) / <alpha-value>)",
-          cyan: "oklch(var(--neon-cyan) / <alpha-value>)",
+        brand: {
+          purple: "oklch(var(--brand-purple) / <alpha-value>)",
+          pink: "oklch(var(--brand-pink) / <alpha-value>)",
+          violet: "oklch(var(--brand-violet) / <alpha-value>)",
+        },
+        coin: {
+          gold: "oklch(var(--coin-gold) / <alpha-value>)",
         },
       },
       fontFamily: {
-        pixel: ['"Press Start 2P"', 'monospace'],
-        body: ['Figtree', 'sans-serif'],
+        display: ['"Bricolage Grotesque"', 'sans-serif'],
+        body: ['"Plus Jakarta Sans"', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace'],
       },
       borderRadius: {
@@ -56,9 +58,9 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        neon: "0 0 20px oklch(var(--neon-green) / 0.4), 0 0 40px oklch(var(--neon-green) / 0.2)",
-        "neon-purple": "0 0 20px oklch(var(--neon-purple) / 0.4), 0 0 40px oklch(var(--neon-purple) / 0.2)",
-        "neon-pink": "0 0 20px oklch(var(--neon-pink) / 0.4), 0 0 40px oklch(var(--neon-pink) / 0.2)",
+        brand: "0 0 30px oklch(0.65 0.29 285 / 0.3), 0 0 60px oklch(0.65 0.29 285 / 0.15)",
+        "brand-sm": "0 0 16px oklch(0.65 0.29 285 / 0.25)",
+        coin: "0 0 20px oklch(0.78 0.18 75 / 0.4)",
       },
       keyframes: {
         "accordion-down": {
@@ -69,25 +71,21 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
-        flicker: {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.8" },
-        },
-        pulse_neon: {
-          "0%, 100%": { boxShadow: "0 0 8px oklch(0.78 0.22 145 / 0.4)" },
-          "50%": { boxShadow: "0 0 20px oklch(0.78 0.22 145 / 0.8), 0 0 40px oklch(0.78 0.22 145 / 0.4)" },
-        },
-        "slide-in-up": {
-          from: { opacity: "0", transform: "translateY(20px)" },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(16px)" },
           to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "coin-pop": {
+          "0%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.3) rotate(10deg)" },
+          "100%": { transform: "scale(1)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        flicker: "flicker 3s ease-in-out infinite",
-        pulse_neon: "pulse_neon 2s ease-in-out infinite",
-        "slide-in-up": "slide-in-up 0.4s ease-out",
+        "fade-up": "fade-up 0.4s ease-out",
+        "coin-pop": "coin-pop 0.4s ease-out",
       },
     },
   },

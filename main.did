@@ -1,0 +1,73 @@
+type _CaffeineStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _CaffeineStorageRefillInformation = record {
+                                           proposed_top_up_amount: opt nat;};
+type _CaffeineStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type VideoPost = 
+ record {
+   blobKey: text;
+   createdAt: Timestamp;
+   description: text;
+   id: nat;
+   likeCount: nat;
+   tags: vec text;
+   title: text;
+   uploader: principal;
+   viewCount: nat;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = record {displayName: text;};
+type Timestamp = int;
+type Comment = 
+ record {
+   author: principal;
+   createdAt: Timestamp;
+   id: nat;
+   "text": text;
+   videoId: nat;
+ };
+service : {
+  _caffeineStorageBlobIsLive: (hash: blob) -> (bool) query;
+  _caffeineStorageBlobsToDelete: () -> (vec blob) query;
+  _caffeineStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _caffeineStorageCreateCertificate: (blobHash: text) ->
+   (_CaffeineStorageCreateCertificateResult);
+  _caffeineStorageRefillCashier: (refillInformation:
+   opt _CaffeineStorageRefillInformation) -> (_CaffeineStorageRefillResult);
+  _caffeineStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControlWithSecret: (userSecret: text) -> ();
+  addComment: (videoId: nat, "text": text) -> (nat);
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  getCallerUserRole: () -> (UserRole) query;
+  getComments: (videoId: nat) -> (vec Comment) query;
+  getFeed: (limit: nat, offset: nat) -> (vec VideoPost) query;
+  getMyProfile: () -> (opt UserProfile) query;
+  getMyTipsEarned: () -> (nat) query;
+  getTrendingFeed: (limit: nat, offset: nat) -> (vec VideoPost) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  getUserTipsEarned: (user: principal) -> (nat) query;
+  getUserVideos: (user: principal) -> (vec VideoPost) query;
+  getVideo: (videoId: nat) -> (opt VideoPost) query;
+  getVideoTips: (videoId: nat) -> (nat) query;
+  hasLikedVideo: (videoId: nat) -> (bool) query;
+  incrementViewCount: (videoId: nat) -> ();
+  isCallerAdmin: () -> (bool) query;
+  likeVideo: (videoId: nat) -> (bool);
+  postVideo: (title: text, description: text, tags: vec text, blobKey:
+   text) -> (nat);
+  saveUserProfile: (profile: UserProfile) -> ();
+  searchVideos: (keyword: text) -> (vec VideoPost) query;
+  tipVideo: (videoId: nat, amount: nat) -> (nat);
+}

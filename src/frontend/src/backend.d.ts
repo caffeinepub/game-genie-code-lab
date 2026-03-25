@@ -7,67 +7,75 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface Type {
-    name: string;
-    description: string;
-    platform: string;
-    genre: string;
-}
 export type Timestamp = bigint;
-export interface UserGame {
-    userId: Principal;
-    gameId: bigint;
-    addedAt: Timestamp;
-}
-export interface Type__1 {
-    code: string;
-    gameId: bigint;
-    effect: string;
-    category: string;
-}
-export interface CheatCodeWithId {
-    id: bigint;
-    code: string;
-    gameId: bigint;
-    effect: string;
-    category: string;
-    isCustom: boolean;
-}
-export interface GeneratedCode {
-    code: string;
-    userId: Principal;
-    generatedAt: Timestamp;
-    gameId: bigint;
-    effect: string;
-}
+
 export interface UserProfile {
-    name: string;
+    displayName: string;
 }
+
+export interface VideoPost {
+    id: bigint;
+    title: string;
+    description: string;
+    tags: Array<string>;
+    uploader: Principal;
+    createdAt: Timestamp;
+    viewCount: bigint;
+    likeCount: bigint;
+    blobKey: string;
+}
+
+export interface Comment {
+    id: bigint;
+    videoId: bigint;
+    author: Principal;
+    text: string;
+    createdAt: Timestamp;
+}
+
+export interface Tip {
+    id: bigint;
+    videoId: bigint;
+    sender: Principal;
+    recipient: Principal;
+    amount: bigint;
+    createdAt: Timestamp;
+}
+
 export enum UserRole {
     admin = "admin",
     user = "user",
     guest = "guest"
 }
+
 export interface backendInterface {
-    addCheatCode(cheatCode: Type__1): Promise<bigint>;
-    addGame(game: Type): Promise<bigint>;
+    // Auth
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    generateRandomCode(gameId: bigint): Promise<GeneratedCode>;
-    getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
-    getCheatCodeById(cheatCodeId: bigint): Promise<Type__1>;
-    getCheatCodesForGame(gameId: bigint): Promise<Array<Type__1>>;
-    getCustomCodesForGame(gameId: bigint): Promise<Array<CheatCodeWithId>>;
-    getCustomCodesForUser(): Promise<Array<CheatCodeWithId>>;
-    getGameById(gameId: bigint): Promise<Type>;
-    getGeneratedCodesHistory(): Promise<Array<GeneratedCode>>;
-    getUserLibrary(): Promise<Array<UserGame>>;
-    getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
-    saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    saveCustomCode(gameId: bigint, code: string, effect: string, category: string): Promise<bigint>;
-    saveGameToLibrary(gameId: bigint): Promise<void>;
-    searchGamesByGenre(genre: string): Promise<Array<Type>>;
-    searchGamesByName(searchText: string): Promise<Array<Type>>;
-    seedData(): Promise<void>;
+    // Profiles
+    saveUserProfile(profile: UserProfile): Promise<void>;
+    getUserProfile(user: Principal): Promise<UserProfile | null>;
+    getMyProfile(): Promise<UserProfile | null>;
+    // Videos
+    postVideo(title: string, description: string, tags: Array<string>, blobKey: string): Promise<bigint>;
+    getVideo(videoId: bigint): Promise<VideoPost | null>;
+    incrementViewCount(videoId: bigint): Promise<void>;
+    getFeed(limit: bigint, offset: bigint): Promise<Array<VideoPost>>;
+    getTrendingFeed(limit: bigint, offset: bigint): Promise<Array<VideoPost>>;
+    searchVideos(keyword: string): Promise<Array<VideoPost>>;
+    getUserVideos(user: Principal): Promise<Array<VideoPost>>;
+    // Likes
+    likeVideo(videoId: bigint): Promise<boolean>;
+    hasLikedVideo(videoId: bigint): Promise<boolean>;
+    // Comments
+    addComment(videoId: bigint, text: string): Promise<bigint>;
+    getComments(videoId: bigint): Promise<Array<Comment>>;
+    // Tips
+    tipVideo(videoId: bigint, amount: bigint): Promise<bigint>;
+    getVideoTips(videoId: bigint): Promise<bigint>;
+    getUserTipsEarned(user: Principal): Promise<bigint>;
+    getMyTipsEarned(): Promise<bigint>;
+    // Blob storage
+    _caffeineStorageCreateCertificate(blobHash: string): Promise<{ method: string; blob_hash: string }>;
 }

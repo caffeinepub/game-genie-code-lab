@@ -1,69 +1,113 @@
 import { Toaster } from "@/components/ui/sonner";
-import { useEffect, useRef, useState } from "react";
+import type { Principal } from "@icp-sdk/core/principal";
+import { useEffect, useState } from "react";
 import Header from "./components/Header";
-import { useActor } from "./hooks/useActor";
-import { useSeedData } from "./hooks/useQueries";
-import GameDetailPage from "./pages/GameDetailPage";
-import HomePage from "./pages/HomePage";
+import SetDisplayNameDialog from "./components/SetDisplayNameDialog";
+import { useInternetIdentity } from "./hooks/useInternetIdentity";
+import { useMyProfile } from "./hooks/useQueries";
+import FeedPage from "./pages/FeedPage";
+import ProfilePage from "./pages/ProfilePage";
+import UploadPage from "./pages/UploadPage";
+import VideoDetailPage from "./pages/VideoDetailPage";
 
 export type AppPage =
-  | { view: "home"; tab: string }
-  | { view: "detail"; gameId: bigint };
+  | { view: "feed"; tab: "latest" | "trending" }
+  | { view: "video"; videoId: bigint }
+  | { view: "upload" }
+  | { view: "profile"; principal: Principal };
 
-export default function App() {
-  const [page, setPage] = useState<AppPage>({ view: "home", tab: "search" });
-  const { actor, isFetching } = useActor();
-  const seedMutation = useSeedData();
-  const seedMutateRef = useRef(seedMutation.mutate);
-  seedMutateRef.current = seedMutation.mutate;
+function AppInner() {
+  const [page, setPage] = useState<AppPage>({ view: "feed", tab: "latest" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showNameDialog, setShowNameDialog] = useState(false);
+  const { identity, isInitializing } = useInternetIdentity();
+  const { data: profile, isLoading: profileLoading } = useMyProfile();
 
+  // Prompt for display name on first login
   useEffect(() => {
-    if (!actor || isFetching) return;
-    const seeded = localStorage.getItem("gameGenie_seeded_v3");
-    if (!seeded) {
-      seedMutateRef.current(undefined, {
-        onSuccess: () => {
-          localStorage.setItem("gameGenie_seeded_v3", "1");
-        },
-      });
+    if (!isInitializing && identity && !profileLoading && !profile) {
+      setShowNameDialog(true);
     }
-  }, [actor, isFetching]);
+  }, [identity, isInitializing, profile, profileLoading]);
 
-  const navigateTo = (p: AppPage) => setPage(p);
+  const handleNavigate = (p: AppPage) => {
+    setPage(p);
+    setSearchQuery("");
+  };
+
+  const handleSearch = (q: string) => {
+    setPage({ view: "feed", tab: "latest" });
+    setSearchQuery(q);
+  };
+
+  const handleLoginRequired = () => {
+    // Prompt user to log in — handled by Header button
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header page={page} onNavigate={navigateTo} />
+      <Header page={page} onNavigate={handleNavigate} onSearch={handleSearch} />
+
       <main className="flex-1">
-        {page.view === "home" && (
-          <HomePage
-            activeTab={page.tab}
-            onTabChange={(tab) => setPage({ view: "home", tab })}
-            onSelectGame={(id) => setPage({ view: "detail", gameId: id })}
+        {page.view === "feed" && (
+          <FeedPage
+            tab={page.tab}
+            onTabChange={(tab) => setPage({ view: "feed", tab })}
+            onNavigate={handleNavigate}
+            searchQuery={searchQuery}
           />
         )}
-        {page.view === "detail" && (
-          <GameDetailPage
-            gameId={page.gameId}
-            onBack={() => setPage({ view: "home", tab: "library" })}
+        {page.view === "video" && (
+          <VideoDetailPage
+            videoId={page.videoId}
+            onNavigate={handleNavigate}
+            onLoginRequired={handleLoginRequired}
           />
+        )}
+        {page.view === "upload" && identity && (
+          <UploadPage onNavigate={handleNavigate} />
+        )}
+        {page.view === "upload" && !identity && (
+          <div className="max-w-lg mx-auto px-4 py-20 text-center space-y-4">
+            <p className="font-display font-bold text-xl">
+              Sign in to upload videos
+            </p>
+            <p className="text-muted-foreground text-sm">
+              You need to be signed in to share content.
+            </p>
+          </div>
+        )}
+        {page.view === "profile" && (
+          <ProfilePage principal={page.principal} onNavigate={handleNavigate} />
         )}
       </main>
-      <footer className="border-t border-border/40 py-4 px-6 text-center">
-        <p className="text-muted-foreground text-xs">
+
+      <footer className="border-t border-border/40 py-5 px-6">
+        <p className="text-muted-foreground text-xs text-center">
           © {new Date().getFullYear()}. Built with{" "}
-          <span className="neon-text-pink">♥</span> using{" "}
+          <span className="text-brand-pink">♥</span> using{" "}
           <a
             href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="neon-text-green hover:opacity-80 transition-opacity"
+            className="text-brand-purple hover:opacity-80 transition-opacity"
           >
             caffeine.ai
           </a>
         </p>
       </footer>
-      <Toaster />
+
+      <Toaster richColors />
+
+      {/* First login display name prompt */}
+      <SetDisplayNameDialog
+        open={showNameDialog}
+        onOpenChange={setShowNameDialog}
+      />
     </div>
   );
+}
+
+export default function App() {
+  return <AppInner />;
 }
